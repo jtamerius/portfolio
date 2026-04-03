@@ -105,7 +105,8 @@ Resources:
     Type: AWS::Amplify::Branch
     Properties:
       AppId: !GetAtt LandingPageAmplifyApp.AppId
-      # production tracks "main"; staging tracks "staging"
+      # production environment tracks the "production" git branch;
+      # staging environment tracks the "staging" git branch
       BranchName: !If [IsProduction, production, staging]
       Description: !Sub 'Auto-tracked branch for the ${Environment} environment'
       EnableAutoBuild: true

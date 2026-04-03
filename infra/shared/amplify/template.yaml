@@ -105,9 +105,10 @@ Resources:
     Type: AWS::Amplify::Branch
     Properties:
       AppId: !GetAtt LandingPageAmplifyApp.AppId
-      # production environment tracks the "production" git branch;
-      # staging environment tracks the "staging" git branch
-      BranchName: !If [IsProduction, production, staging]
+      # production environment tracks the "main" git branch;
+      # staging environment tracks the "staging" git branch.
+      # Note: the string "main" here is a git branch name, not a CFN function.
+      BranchName: !If [IsProduction, main, staging]
       Description: !Sub 'Auto-tracked branch for the ${Environment} environment'
       EnableAutoBuild: true
       # Enable PR previews only in staging to avoid leaking unreleased content

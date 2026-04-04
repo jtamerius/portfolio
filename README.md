@@ -11,7 +11,7 @@ GitHub (jtamerius/portfolio)
         │
         ├── push → staging branch ──────► GitHub Actions (auto-deploy)
         │                                         │
-        └── push → production branch ─────► GitHub Actions (manual approval)
+        └── push → main branch ───────────► GitHub Actions (auto-deploy)
                                                   │
                                     ┌─────────────┼─────────────┐
                                     ▼             ▼             ▼
@@ -25,7 +25,7 @@ GitHub (jtamerius/portfolio)
 
 | Environment | Domain                        | Branch     |
 |-------------|-------------------------------|------------|
-| Production  | `tools.jtamerius.com`         | `production` |
+| Production  | `tools.jtamerius.com`         | `main`     |
 | Staging     | `tools.staging.jtamerius.com` | `staging`  |
 
 ---
@@ -139,17 +139,15 @@ Push to the `staging` branch. GitHub Actions will:
 3. Deploy any changed app infra stacks
 4. Trigger an Amplify build for changed apps and poll until complete
 
-### Production (manual approval)
+### Production (automatic on push to `main`)
 
-Push to the `production` branch (typically by merging from `staging`). The same workflow runs but each job requires approval from a designated reviewer configured in the **production** GitHub Environment.
+Merge to `main` (typically via PR from `staging`). The same workflow runs automatically — no manual approval step. Branch protection on `main` is the gate: require a passing PR review before merge.
 
 To promote staging → production:
 
 ```bash
-git checkout production
-git merge staging
-git push origin production
-# Then approve the deployment in the GitHub Actions UI
+# Open a PR from staging → main in GitHub, get it reviewed, then merge.
+# The deploy-production workflow fires automatically on merge.
 ```
 
 ---
@@ -198,6 +196,72 @@ if (!groups.includes('member')) return <AccessDenied />
 
 See [docs/auth.md](docs/auth.md) for the full guide including invite flows, token lifecycle, and AWS CLI commands to manage users.
 
+### How Cognito config reaches the browser
+
+Cognito IDs (User Pool ID and Client ID) are never hard-coded. They flow from CloudFormation through SSM into Amplify's build environment:
+
+```mermaid
+flowchart LR
+    CFN["☁️ CloudFormation\nCognito stack"]
+    SSM["🗄 SSM Parameter Store\n/tools/env/cognito/user-pool-id\n/tools/env/cognito/client-id"]
+    AMP["🔨 Amplify Build\nnpm run build"]
+    ENV["📦 Vite Bundle\nVITE_COGNITO_USER_POOL_ID\nVITE_COGNITO_CLIENT_ID"]
+    HOOK["⚛️ useAuth() hook\nnew CognitoUserPool(config)"]
+
+    CFN -->|"deploy-app.sh\nwrites IDs"| SSM
+    SSM -->|"{{resolve:ssm:...}}\nat build time"| AMP
+    AMP -->|"injected as\nenv vars"| ENV
+    ENV -->|"import.meta.env\nin browser"| HOOK
+```
+
+### Runtime auth flow
+
+What happens from page load through sign-in to access control:
+
+```mermaid
+flowchart TD
+    LOAD(["🌐 App loads"])
+    SESSION{"Saved session\nin localStorage?"}
+    DECODE["Decode ID token\n→ email, sub, groups"]
+    AUTHED(["✅ Signed in\nuser + groups set"])
+
+    GATE["Apps page\n⚡ Sign in or Continue as guest"]
+    FORM["Sign-in form\nemail + password"]
+    COGNITO["☁️ Cognito User Pool\nauthenticateUser()"]
+    FAIL["❌ Error shown\nin modal"]
+    TOKENS["ID token\nAccess token\nRefresh token\n→ saved to localStorage"]
+
+    REFRESH["🔁 Every 30 min\ngetSession() called"]
+    EXPIRED{"Access token\nexpired?"}
+    NEWTOKEN["SDK silently refreshes\nvia Refresh token"]
+    SIGNOUT(["🔒 Signed out\n→ back to gate"])
+
+    ACCESS{"App access\ncheck"}
+    PUBLIC(["🌍 Public app\nopen to all"])
+    ALLOWED(["🔓 Accessible\nuser in required group"])
+    BLOCKED(["🔒 Locked\nsign-in required\nor wrong group"])
+
+    LOAD --> SESSION
+    SESSION -->|"yes"| DECODE --> AUTHED
+    SESSION -->|"no"| GATE
+    GATE -->|"Sign in"| FORM
+    FORM --> COGNITO
+    COGNITO -->|"onSuccess"| TOKENS --> DECODE
+    COGNITO -->|"onFailure"| FAIL --> FORM
+
+    AUTHED --> REFRESH
+    REFRESH --> EXPIRED
+    EXPIRED -->|"yes"| NEWTOKEN --> AUTHED
+    EXPIRED -->|"refresh token\nalso expired"| SIGNOUT
+    EXPIRED -->|"no"| AUTHED
+
+    AUTHED --> ACCESS
+    GATE -->|"Continue as guest"| ACCESS
+    ACCESS -->|"app.isPublic = true"| PUBLIC
+    ACCESS -->|"signed in +\ngroup matches"| ALLOWED
+    ACCESS -->|"not signed in or\ngroup mismatch"| BLOCKED
+```
+
 ---
 
 ## Domain Structure
@@ -217,9 +281,9 @@ Certificates are managed by ACM (`infra/shared/dns/`) and validated via Route 53
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | PR → `staging` or `production` | Lint, test, build apps; validate CloudFormation templates |
+| `ci.yml` | PR → `staging` or `main` | Lint, test, build apps; validate CloudFormation templates |
 | `deploy-staging.yml` | Push → `staging` | Deploy changed infra + trigger Amplify builds |
-| `deploy-production.yml` | Push → `production` | Same as staging but each job requires manual approval |
+| `deploy-production.yml` | Push → `main` | Same as staging, auto-deploy (branch protection is the gate) |
 
 All workflows use OIDC federation (`aws-actions/configure-aws-credentials`) — no long-lived AWS credentials are stored in GitHub.
 

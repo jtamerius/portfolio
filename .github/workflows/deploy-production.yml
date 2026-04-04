@@ -3,7 +3,7 @@ name: Deploy — Production
 on:
   push:
     branches:
-      - production
+      - main
 
 # Ensure only one production deployment runs at a time.
 # Never cancel an in-progress production deploy; queue the next one instead.
@@ -45,14 +45,12 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Job 2: Deploy shared infrastructure to production
-  # Manual approval required via the "production" GitHub environment.
   # -----------------------------------------------------------------------
   deploy-shared-infra-production:
     name: Deploy Shared Infra — Production
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.infra-shared == 'true'
-    environment: production   # Requires manual approval from required reviewers
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -102,7 +100,6 @@ jobs:
       needs.detect-changes.outputs.infra-landing-page == 'true' &&
       (needs.deploy-shared-infra-production.result == 'success' ||
        needs.deploy-shared-infra-production.result == 'skipped')
-    environment: production   # Requires manual approval from required reviewers
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -117,7 +114,7 @@ jobs:
         run: bash infra/scripts/deploy-app.sh landing-page production
 
   # -----------------------------------------------------------------------
-  # Job 4: Deploy landing-page frontend via Amplify (production branch)
+  # Job 4: Deploy landing-page frontend via Amplify (main branch)
   # -----------------------------------------------------------------------
   deploy-landing-page-frontend-production:
     name: Deploy landing-page Frontend — Production
@@ -131,7 +128,6 @@ jobs:
       needs.detect-changes.outputs.landing-page == 'true' &&
       (needs.deploy-landing-page-infra-production.result == 'success' ||
        needs.deploy-landing-page-infra-production.result == 'skipped')
-    environment: production   # Requires manual approval from required reviewers
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -142,12 +138,12 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Trigger Amplify deployment (production branch)
+      - name: Trigger Amplify deployment (main branch)
         id: start-job
         run: |
           JOB_ID=$(aws amplify start-job \
             --app-id ${{ secrets.AMPLIFY_APP_ID_LANDING_PAGE }} \
-            --branch-name production \
+            --branch-name main \
             --job-type RELEASE \
             --query 'jobSummary.jobId' \
             --output text \
@@ -160,7 +156,7 @@ jobs:
         run: |
           JOB_ID="${{ steps.start-job.outputs.job_id }}"
           APP_ID="${{ secrets.AMPLIFY_APP_ID_LANDING_PAGE }}"
-          BRANCH="production"
+          BRANCH="main"
           MAX_ATTEMPTS=60   # 60 × 30s = 30 minutes max
           ATTEMPT=0
 

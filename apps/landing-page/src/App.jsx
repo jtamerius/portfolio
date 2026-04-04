@@ -1,14 +1,19 @@
 import { useState } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
-import { useAuth } from './hooks/useAuth'
+import { useAuth } from '@tools/auth'
 import Nav from './components/Nav'
 import SignInModal from './components/SignInModal'
 import Home from './pages/Home'
 import About from './pages/About'
 import Apps from './pages/Apps'
 
+const AUTH_CONFIG = {
+  userPoolId: import.meta.env.VITE_COGNITO_USER_POOL_ID ?? '',
+  clientId: import.meta.env.VITE_COGNITO_CLIENT_ID ?? '',
+}
+
 export default function App() {
-  const { user, groups, isLoading, signIn, signOut } = useAuth()
+  const { user, groups, isLoading, signIn, signOut } = useAuth(AUTH_CONFIG)
   const [modalOpen, setModalOpen] = useState(false)
 
   function openSignIn() {

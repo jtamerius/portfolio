@@ -6,8 +6,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
-  define: {
-    // Expose only non-secret Cognito config via env vars
-    // Secrets never go in frontend code
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.js'],
   },
 })

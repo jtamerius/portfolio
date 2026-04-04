@@ -111,3 +111,39 @@ export function getUserAttributesFromToken(session) {
     sub: payload['sub'] ?? '',
   };
 }
+
+/**
+ * Initiates the forgot-password flow by sending a verification code to the
+ * user's registered email address.
+ * @param {CognitoUserPool} userPool
+ * @param {string} email
+ * @returns {Promise<void>}
+ */
+export function forgotPassword(userPool, email) {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = new CognitoUser({ Username: email, Pool: userPool });
+    cognitoUser.forgotPassword({
+      onSuccess() { resolve(); },
+      onFailure(err) { reject(err); },
+    });
+  });
+}
+
+/**
+ * Completes the forgot-password flow by submitting the verification code and
+ * the new password chosen by the user.
+ * @param {CognitoUserPool} userPool
+ * @param {string} email
+ * @param {string} code   - The verification code sent to the user's email
+ * @param {string} newPassword
+ * @returns {Promise<void>}
+ */
+export function confirmForgotPassword(userPool, email, code, newPassword) {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = new CognitoUser({ Username: email, Pool: userPool });
+    cognitoUser.confirmPassword(code, newPassword, {
+      onSuccess() { resolve(); },
+      onFailure(err) { reject(err); },
+    });
+  });
+}

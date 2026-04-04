@@ -50,11 +50,15 @@ PARAMS_FILE="$INFRA_DIR/environments/$ENV/params.json"
 # ACM for Amplify/CloudFront must be in us-east-1
 REGION="${AWS_REGION:-us-east-1}"
 
+# ─── Arguments (optional) ────────────────────────────────────────────────────
+ALERT_EMAIL="${3:-}"
+
 # ─── Stack names ─────────────────────────────────────────────────────────────
 STACK_IAM="tools-shared-iam-$ENV"
 STACK_COGNITO="tools-shared-cognito-$ENV"
 STACK_DNS="tools-shared-dns-$ENV"
 STACK_AMPLIFY="tools-shared-amplify-$ENV"
+STACK_MONITORING="tools-shared-monitoring-$ENV"
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 log()  { echo "[$(date -u '+%H:%M:%S')] $*"; }
@@ -171,6 +175,19 @@ deploy_stack "$STACK_AMPLIFY" \
   "$INFRA_DIR/shared/amplify/template.yaml" \
   "Environment=$ENV" \
   "GitHubOAuthToken=$GITHUB_OAUTH_TOKEN"
+
+# ─── 5. Monitoring stack ─────────────────────────────────────────────────────
+# Optional — only deployed when ALERT_EMAIL is provided.
+if [[ -n "$ALERT_EMAIL" ]]; then
+  info "Deploying monitoring stack (alert email: $ALERT_EMAIL)"
+  deploy_stack "$STACK_MONITORING" \
+    "$INFRA_DIR/shared/monitoring/template.yaml" \
+    "Environment=$ENV" \
+    "AlertEmail=$ALERT_EMAIL"
+else
+  info "Skipping monitoring stack (pass alert email as 3rd arg to enable):"
+  info "  $0 $ENV <github-token> you@example.com"
+fi
 
 # ─── Done ────────────────────────────────────────────────────────────────────
 info "=== All shared stacks deployed for environment: $ENV ==="

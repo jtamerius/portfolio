@@ -1,0 +1,4 @@
+[
+  { "ParameterKey": "Environment",   "ParameterValue": "production" },
+  { "ParameterKey": "HostedZoneId",  "ParameterValue": "REPLACE_WITH_HOSTED_ZONE_ID" }
+]
